@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unified Messenger</title>
+    <style>
+        body { font-family: sans-serif; margin: 0; }
+        #app-container { display: flex; height: 100vh; }
+        #login-view { max-width: 400px; margin: auto; padding: 20px; }
+        #main-view { width: 100%; display: flex; }
+        #threads-panel { width: 30%; border-right: 1px solid #ccc; overflow-y: auto; }
+        #messages-panel { width: 70%; display: flex; flex-direction: column; }
+        #messages-list { flex-grow: 1; padding: 20px; overflow-y: auto; }
+        #message-form { display: flex; padding: 10px; border-top: 1px solid #ccc; }
+        #message-input { flex-grow: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
+        #message-form button { padding: 10px 15px; margin-left: 10px; border: none; background-color: #007bff; color: white; border-radius: 5px; cursor: pointer; }
+        .thread-item { padding: 15px; border-bottom: 1px solid #eee; cursor: pointer; }
+        .thread-item:hover { background-color: #f5f5f5; }
+        .thread-item.active { background-color: #e0e0e0; }
+        .provider-icon { width: 20px; height: 20px; vertical-align: middle; margin-right: 10px; border-radius: 50%; }
+        .message { margin-bottom: 15px; }
+        .message .sender { font-weight: bold; }
+        .message .text { margin-top: 5px; }
+    </style>
+</head>
+<body>
+
+    <div id="login-view">
+        <h2>Login</h2>
+        <form id="login-form">
+            <input type="email" id="email" placeholder="Email" required style="width: 100%; padding: 8px; margin-bottom: 10px;"><br>
+            <input type="password" id="password" placeholder="Password" required style="width: 100%; padding: 8px; margin-bottom: 10px;"><br>
+            <button type="submit" style="width: 100%; padding: 10px;">Login</button>
+        </form>
+    </div>
+
+    <div id="app-container" style="display: none;">
+        <div id="threads-panel">
+            <h2 style="padding-left: 15px;">Inbox</h2>
+            <div id="threads-list"></div>
+        </div>
+        <div id="messages-panel">
+            <div id="messages-list">
+                <p>Select a conversation to start messaging.</p>
+            </div>
+            <form id="message-form" style="display: none;">
+                <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off">
+                <button type="submit">Send</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const loginForm = document.getElementById('login-form');
+        const loginView = document.getElementById('login-view');
+        const appContainer = document.getElementById('app-container');
+        const threadsList = document.getElementById('threads-list');
+        const messagesList = document.getElementById('messages-list');
+        const messageForm = document.getElementById('message-form');
+        const messageInput = document.getElementById('message-input');
+        
+        // App State
+        let authToken = null;
+        let currentThreadId = null;
+
+        // Event Listeners
+        loginForm.addEventListener('submit', handleLogin);
+        messageForm.addEventListener('submit', handleSendMessage);
+
+        // Functions
+        async function handleLogin(e) {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            const response = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+
+            if (response.ok) {
+                const { token } = await response.json();
+                authToken = token;
+                loginView.style.display = 'none';
+                appContainer.style.display = 'flex';
+                fetchThreads();
+            } else {
+                alert('Login failed!');
+            }
+        }
+
+        async function fetchThreads() {
+            if (!authToken) return;
+
+            const response = await fetch('/api/app/thread', {
+                headers: { 'Authorization': `Bearer ${authToken}` }
+            });
+
+            if (response.ok) {
+                const threads = await response.json();
+                threadsList.innerHTML = '';
+                threads.forEach(thread => {
+                    const threadDiv = document.createElement('div');
+                    threadDiv.className = 'thread-item';
+                    threadDiv.dataset.threadId = thread._id;
+                    threadDiv.innerHTML = `
+                        <img class="provider-icon" src="/icons/${thread.provider}.png" alt="${thread.provider}">
+                        <strong>${thread.title}</strong>
+                        <p style="margin: 5px 0 0; color: #666;">${new Date(thread.lastMessageAt).toLocaleString()}</p>
+                    `;
+                    threadDiv.addEventListener('click', () => {
+                        document.querySelectorAll('.thread-item').forEach(el => el.classList.remove('active'));
+                        threadDiv.classList.add('active');
+                        
+                        currentThreadId = thread._id;
+                        fetchMessages(currentThreadId);
+                    });
+                    threadsList.appendChild(threadDiv);
+                });
+            }
+        }
+
+        async function fetchMessages(threadId) {
+            if (!authToken || !threadId) return;
+
+            messagesList.innerHTML = '<p>Loading messages...</p>';
+            messageForm.style.display = 'flex'; // Show the message form
+
+            const response = await fetch(`/api/app/message?id=${threadId}`, {
+                headers: { 'Authorization': `Bearer ${authToken}` }
+            });
+
+            if (response.ok) {
+                const messages = await response.json();
+                renderMessages(messages);
+            } else {
+                messagesList.innerHTML = '<p>Failed to load messages.</p>';
+            }
+        }
+
+        async function handleSendMessage(e) {
+            e.preventDefault();
+            const text = messageInput.value.trim();
+            if (!text || !currentThreadId) return;
+
+            // Optimistic UI Update
+            const optimisticMessage = {
+                senderName: 'You',
+                text: text,
+                sentAt: new Date().toISOString()
+            };
+            renderMessages([optimisticMessage], true); // Add to existing messages
+            messageInput.value = '';
+
+            const response = await fetch('/api/app/send', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${authToken}`
+                },
+                body: JSON.stringify({ threadId: currentThreadId, text })
+            });
+
+            if (!response.ok) {
+                alert('Message failed to send!');
+                // Here you could add logic to remove the optimistic message
+                // or mark it as failed.
+            }
+            // If successful, the next time fetchMessages is called, the real message
+            // from the database will be displayed.
+        }
+
+        function renderMessages(messages, append = false) {
+            if (!append) {
+                messagesList.innerHTML = '';
+            }
+            messages.forEach(message => {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'message';
+                messageDiv.innerHTML = `
+                    <div class="sender">${message.senderName}</div>
+                    <div class="text">${message.text}</div>
+                    <div class="date" style="font-size: 0.8em; color: #999;">${new Date(message.sentAt).toLocaleString()}</div>
+                `;
+                messagesList.appendChild(messageDiv);
+            });
+            messagesList.scrollTop = messagesList.scrollHeight; // Scroll to bottom
+        }
+
+    </script>
+</body>
+</html>
