@@ -1,11 +1,11 @@
-// api/app/send.js
+// In api/app/send.js
 const { connect } = require('../../lib/db');
 const Thread = require('../../models/Thread');
 const Message = require('../../models/Message');
 
-// Provider-specific implementations
 const providers = {
-  telegram: require('../../lib/providers/telegram')
+  telegram: require('../../lib/providers/telegram'),
+  discord: require('../../lib/providers/discord'),
 };
 
 module.exports = async (req, res) => {
@@ -18,7 +18,6 @@ module.exports = async (req, res) => {
     }
 
     await connect();
-
     const thread = await Thread.findById(threadId);
     if (!thread) return res.status(404).json({ ok: false, error: 'Thread not found' });
 
@@ -28,10 +27,8 @@ module.exports = async (req, res) => {
     }
 
     const sentMessage = await provider.sendMessage(thread, text, replyToProviderMessageId);
-
-    const m = sentMessage;
-    const providerMessageId = String(m.message_id);
-    const when = new Date((m.date || Math.floor(Date.now() / 1000)) * 1000);
+    const providerMessageId = String(sentMessage.id || sentMessage.message_id);
+    const when = new Date(sentMessage.createdTimestamp || (sentMessage.date * 1000) || Date.now());
 
     await Message.create({
       userId: thread.userId,
