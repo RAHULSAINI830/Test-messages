@@ -1,6 +1,8 @@
+// DEBUGGING: Log that the file is running
+console.log('Discord webhook file is executing.');
+
 const { Client, GatewayIntentBits } = require('discord.js');
 
-// Create a new client instance
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -9,24 +11,32 @@ const client = new Client({
   ],
 });
 
-// When the bot successfully logs in, print a message to the console
+// DEBUGGING: More detailed ready event
 client.on('ready', () => {
-  console.log(`Logged in as ${client.user.tag}!`);
+  console.log(`SUCCESS: Logged in as ${client.user.tag}! Bot is online and ready.`);
 });
 
-// NEW: This block runs every time a new message is created in any channel
 client.on('messageCreate', async (msg) => {
-  // We don't want the bot to reply to itself or other bots, so we add this check
-  if (msg.author.bot) return;
+  // DEBUGGING: Log that a message event was received
+  console.log(`EVENT: Received a messageCreate event from user ID ${msg.author.id}`);
 
-  // For testing, let's log the message content and author to the Vercel logs
-  console.log(`Received message from ${msg.author.username}: "${msg.content}"`);
+  if (msg.author.bot) {
+    console.log('INFO: Message was from a bot. Ignoring.');
+    return;
+  }
+
+  console.log(`SUCCESS: Processing message from ${msg.author.username}: "${msg.content}"`);
 });
 
-// Use the token from Vercel's environment variables to log in
-client.login(process.env.DISCORD_BOT_TOKEN);
+// DEBUGGING: Log before attempting to log in
+console.log('INFO: Attempting to log in with bot token...');
 
-// Export a handler for Vercel to keep the function running
+client.login(process.env.DISCORD_BOT_TOKEN)
+  .catch(err => {
+    // DEBUGGING: Catch and log any errors during login
+    console.error('ERROR: Failed to log in.', err);
+  });
+
 module.exports = (req, res) => {
   res.status(200).send('Discord bot is running.');
 };
