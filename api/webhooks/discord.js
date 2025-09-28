@@ -1,8 +1,6 @@
-// DEBUGGING: Log that the file is running
-console.log('Discord webhook file is executing.');
+import { Client, GatewayIntentBits } from 'discord.js';
 
-const { Client, GatewayIntentBits } = require('discord.js');
-
+// Create a new client instance
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -11,32 +9,39 @@ const client = new Client({
   ],
 });
 
-// DEBUGGING: More detailed ready event
+// Add our event listeners
 client.on('ready', () => {
-  console.log(`SUCCESS: Logged in as ${client.user.tag}! Bot is online and ready.`);
+  console.log(`SUCCESS: Bot is ready and logged in as ${client.user.tag}!`);
 });
 
-client.on('messageCreate', async (msg) => {
-  // DEBUGGING: Log that a message event was received
-  console.log(`EVENT: Received a messageCreate event from user ID ${msg.author.id}`);
+client.on('messageCreate', (msg) => {
+  if (msg.author.bot) return;
+  console.log(`MESSAGE from ${msg.author.username}: ${msg.content}`);
+});
 
-  if (msg.author.bot) {
-    console.log('INFO: Message was from a bot. Ignoring.');
-    return;
+// Log in to Discord with your client's token
+// We wrap this in an async function to use await and catch errors.
+const startBot = async () => {
+  try {
+    console.log("Attempting to log in the bot...");
+    await client.login(process.env.DISCORD_BOT_TOKEN);
+  } catch (error) {
+    console.error("Error logging in:", error);
   }
-
-  console.log(`SUCCESS: Processing message from ${msg.author.username}: "${msg.content}"`);
-});
-
-// DEBUGGING: Log before attempting to log in
-console.log('INFO: Attempting to log in with bot token...');
-
-client.login(process.env.DISCORD_BOT_TOKEN)
-  .catch(err => {
-    // DEBUGGING: Catch and log any errors during login
-    console.error('ERROR: Failed to log in.', err);
-  });
-
-module.exports = (req, res) => {
-  res.status(200).send('Discord bot is running.');
 };
+
+// Start the bot only if it's not already running
+if (!client.isReady()) {
+    startBot();
+}
+
+
+// This is the part Vercel will run when someone visits the webhook URL.
+// It just confirms the bot's login status.
+export default function handler(req, res) {
+  if (client.isReady()) {
+    res.status(200).send(`Bot is logged in as ${client.user.tag}`);
+  } else {
+    res.status(500).send('Bot is not logged in or is starting.');
+  }
+}
