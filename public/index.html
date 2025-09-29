@@ -7,7 +7,8 @@
     <style>
         body { font-family: sans-serif; margin: 0; }
         #app-container { display: flex; height: 100vh; }
-        #login-view { max-width: 400px; margin: auto; padding: 20px; }
+        #login-view, #register-view { max-width: 400px; margin: auto; padding: 20px; }
+        #register-view { display: none; } /* Hide register view by default */
         #main-view { width: 100%; display: flex; }
         #threads-panel { width: 30%; border-right: 1px solid #ccc; overflow-y: auto; }
         #messages-panel { width: 70%; display: flex; flex-direction: column; }
@@ -33,6 +34,17 @@
             <input type="password" id="password" placeholder="Password" required style="width: 100%; padding: 8px; margin-bottom: 10px;"><br>
             <button type="submit" style="width: 100%; padding: 10px;">Login</button>
         </form>
+        <p>Don't have an account? <a href="#" id="show-register">Register here</a>.</p>
+    </div>
+
+    <div id="register-view">
+        <h2>Register</h2>
+        <form id="register-form">
+            <input type="email" id="register-email" placeholder="Email" required style="width: 100%; padding: 8px; margin-bottom: 10px;"><br>
+            <input type="password" id="register-password" placeholder="Password" required style="width: 100%; padding: 8px; margin-bottom: 10px;"><br>
+            <button type="submit" style="width: 100%; padding: 10px;">Register</button>
+        </form>
+        <p>Already have an account? <a href="#" id="show-login">Login here</a>.</p>
     </div>
 
     <div id="app-container" style="display: none;">
@@ -55,6 +67,10 @@
         // DOM Elements
         const loginForm = document.getElementById('login-form');
         const loginView = document.getElementById('login-view');
+        const registerView = document.getElementById('register-view');
+        const registerForm = document.getElementById('register-form');
+        const showLogin = document.getElementById('show-login');
+        const showRegister = document.getElementById('show-register');
         const appContainer = document.getElementById('app-container');
         const threadsList = document.getElementById('threads-list');
         const messagesList = document.getElementById('messages-list');
@@ -67,7 +83,20 @@
 
         // Event Listeners
         loginForm.addEventListener('submit', handleLogin);
+        registerForm.addEventListener('submit', handleRegister);
         messageForm.addEventListener('submit', handleSendMessage);
+
+        showRegister.addEventListener('click', (e) => {
+            e.preventDefault();
+            loginView.style.display = 'none';
+            registerView.style.display = 'block';
+        });
+
+        showLogin.addEventListener('click', (e) => {
+            e.preventDefault();
+            registerView.style.display = 'none';
+            loginView.style.display = 'block';
+        });
 
         // Functions
         async function handleLogin(e) {
@@ -85,10 +114,34 @@
                 const { token } = await response.json();
                 authToken = token;
                 loginView.style.display = 'none';
+                registerView.style.display = 'none';
                 appContainer.style.display = 'flex';
                 fetchThreads();
             } else {
                 alert('Login failed!');
+            }
+        }
+
+        async function handleRegister(e) {
+            e.preventDefault();
+            const email = document.getElementById('register-email').value;
+            const password = document.getElementById('register-password').value;
+
+            const response = await fetch('/api/auth/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+
+            if (response.ok) {
+                const { token } = await response.json();
+                authToken = token;
+                loginView.style.display = 'none';
+                registerView.style.display = 'none';
+                appContainer.style.display = 'flex';
+                fetchThreads();
+            } else {
+                alert('Registration failed!');
             }
         }
 
