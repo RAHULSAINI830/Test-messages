@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits } from 'discord.js';
+const { Client, GatewayIntentBits } = require('discord.js');
 
 // Create a new client instance
 const client = new Client({
@@ -20,7 +20,6 @@ client.on('messageCreate', (msg) => {
 });
 
 // Log in to Discord with your client's token
-// We wrap this in an async function to use await and catch errors.
 const startBot = async () => {
   try {
     console.log("Attempting to log in the bot...");
@@ -35,13 +34,12 @@ if (!client.isReady()) {
     startBot();
 }
 
-
 // This is the part Vercel will run when someone visits the webhook URL.
 // It just confirms the bot's login status.
-export default function handler(req, res) {
+module.exports = (req, res) => {
   if (client.isReady()) {
     res.status(200).send(`Bot is logged in as ${client.user.tag}`);
   } else {
     res.status(500).send('Bot is not logged in or is starting.');
   }
-}
+};
