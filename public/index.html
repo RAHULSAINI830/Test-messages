@@ -10,7 +10,8 @@
         #login-view, #register-view { max-width: 400px; margin: auto; padding: 20px; }
         #register-view { display: none; } /* Hide register view by default */
         #main-view { width: 100%; display: flex; }
-        #threads-panel { width: 30%; border-right: 1px solid #ccc; overflow-y: auto; }
+        #threads-panel { width: 30%; border-right: 1px solid #ccc; overflow-y: auto; display: flex; flex-direction: column; }
+        #threads-list { flex-grow: 1; }
         #messages-panel { width: 70%; display: flex; flex-direction: column; }
         #messages-list { flex-grow: 1; padding: 20px; overflow-y: auto; }
         #message-form { display: flex; padding: 10px; border-top: 1px solid #ccc; }
@@ -49,8 +50,18 @@
 
     <div id="app-container" style="display: none;">
         <div id="threads-panel">
-            <h2 style="padding-left: 15px;">Inbox</h2>
+            <div style="padding: 0 15px;">
+                <h2>Inbox</h2>
+            </div>
             <div id="threads-list"></div>
+            <div id="accounts-section" style="padding: 15px; border-top: 1px solid #ccc;">
+                <h4>Link Accounts</h4>
+                <form id="link-telegram-form">
+                    <p><strong>Telegram</strong></p>
+                    <input type="text" id="telegram-user-id" placeholder="Your Telegram User ID" required style="width: 100%; padding: 8px; margin-bottom: 10px;">
+                    <button type="submit">Link Telegram</button>
+                </form>
+            </div>
         </div>
         <div id="messages-panel">
             <div id="messages-list">
@@ -76,6 +87,7 @@
         const messagesList = document.getElementById('messages-list');
         const messageForm = document.getElementById('message-form');
         const messageInput = document.getElementById('message-input');
+        const linkTelegramForm = document.getElementById('link-telegram-form');
         
         // App State
         let authToken = null;
@@ -85,6 +97,7 @@
         loginForm.addEventListener('submit', handleLogin);
         registerForm.addEventListener('submit', handleRegister);
         messageForm.addEventListener('submit', handleSendMessage);
+        linkTelegramForm.addEventListener('submit', handleLinkAccount);
 
         showRegister.addEventListener('click', (e) => {
             e.preventDefault();
@@ -145,6 +158,34 @@
             }
         }
 
+        async function handleLinkAccount(e) {
+            e.preventDefault();
+            const telegramUserId = document.getElementById('telegram-user-id').value;
+            if (!telegramUserId) {
+                alert('Please enter your Telegram User ID.');
+                return;
+            }
+
+            const response = await fetch('/api/app/link', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${authToken}`
+                },
+                body: JSON.stringify({
+                    provider: 'telegram',
+                    metadata: { userId: telegramUserId }
+                })
+            });
+
+            if (response.ok) {
+                alert('Telegram account linked successfully!');
+                linkTelegramForm.reset();
+            } else {
+                alert('Failed to link Telegram account.');
+            }
+        }
+
         async function fetchThreads() {
             if (!authToken) return;
 
@@ -155,6 +196,9 @@
             if (response.ok) {
                 const threads = await response.json();
                 threadsList.innerHTML = '';
+                if (threads.length === 0) {
+                    threadsList.innerHTML = '<p style="padding: 15px; color: #666;">No conversations yet. Once you link an account and receive a message, it will appear here.</p>';
+                }
                 threads.forEach(thread => {
                     const threadDiv = document.createElement('div');
                     threadDiv.className = 'thread-item';
@@ -222,8 +266,6 @@
                 // Here you could add logic to remove the optimistic message
                 // or mark it as failed.
             }
-            // If successful, the next time fetchMessages is called, the real message
-            // from the database will be displayed.
         }
 
         function renderMessages(messages, append = false) {
